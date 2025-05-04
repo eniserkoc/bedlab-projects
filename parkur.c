@@ -3,6 +3,7 @@
 #include <conio.h>
 #include <time.h>
 #include <windows.h>
+#include <string.h>
 
 #define CONSOLE_WIDTH 80
 #define CONSOLE_HEIGHT 25
@@ -15,7 +16,7 @@
 #define WALL_THICKNESS 1
 
 typedef struct {
-    float x,y;
+    float x, y;
     int width;
     int hasScore;
 } Platform;
@@ -30,10 +31,11 @@ float highestPlatformY = 0;
 float cameraOffset = 0;
 int score = 0;
 int jumpLock = 0;
+int gameOver = 0;
 
 typedef struct {
-    float x,y;
-    float vx,vy;
+    float x, y;
+    float vx, vy;
 } Player;
 
 typedef struct WallNode {
@@ -47,10 +49,10 @@ float highestWallYForWalls = 0;
 
 void gotoXY(int x, int y) {
     COORD coord = {x, y};
-    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE),coord);
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-Platform generatePlatform(float y){
+Platform generatePlatform(float y) {
     Platform p;
     p.width = PLATFORM_WIDTH;
     p.x = rand() % (CONSOLE_WIDTH - PLATFORM_WIDTH);
@@ -63,7 +65,7 @@ void addPlatformNode(Platform p) {
     PlatformNode *newNode = (PlatformNode *)malloc(sizeof(PlatformNode));
     newNode->p = p;
     newNode->next = NULL;
-    if(platformList == NULL) {
+    if (platformList == NULL) {
         platformList = newNode;
     } else {
         PlatformNode *current = platformList;
@@ -75,7 +77,8 @@ void addPlatformNode(Platform p) {
 }
 
 void initPlatforms() {
-    while(platformList != NULL) {
+
+    while (platformList != NULL) {
         PlatformNode *temp = platformList;
         platformList = platformList->next;
         free(temp);
@@ -102,8 +105,8 @@ void initPlatforms() {
 
 void updatePlatforms() {
     PlatformNode **current = &platformList;
-    while(*current != NULL) {
-        if((*current)->p.y < cameraOffset - 1) {
+    while (*current != NULL) {
+        if ((*current)->p.y < cameraOffset - 1) {
             PlatformNode *temp = *current;
             *current = (*current)->next;
             free(temp);
@@ -121,11 +124,11 @@ void updatePlatforms() {
 }
 
 void addWallSegment(int side, float y) {
-    WallNode *newNode = (WallNode*) malloc(sizeof(WallNode));
+    WallNode *newNode = (WallNode *)malloc(sizeof(WallNode));
     newNode->y = y;
     newNode->side = side;
     newNode->next = NULL;
-    if(wallList == NULL) {
+    if (wallList == NULL) {
         wallList = newNode;
     } else {
         WallNode *current = wallList;
@@ -136,7 +139,8 @@ void addWallSegment(int side, float y) {
 }
 
 void initWalls() {
-    while(wallList != NULL) {
+
+    while (wallList != NULL) {
         WallNode *temp = wallList;
         wallList = wallList->next;
         free(temp);
@@ -153,8 +157,8 @@ void initWalls() {
 
 void updateWalls() {
     WallNode **current = &wallList;
-    while(*current != NULL) {
-        if((*current)->y < cameraOffset -1) {
+    while (*current != NULL) {
+        if ((*current)->y < cameraOffset - 1) {
             WallNode *temp = *current;
             *current = (*current)->next;
             free(temp);
@@ -164,8 +168,8 @@ void updateWalls() {
     }
     while (highestWallYForWalls < cameraOffset + CONSOLE_HEIGHT) {
         float newY = highestWallYForWalls + 1;
-        addWallSegment(0,newY);
-        addWallSegment(1,newY);
+        addWallSegment(0, newY);
+        addWallSegment(1, newY);
         highestWallYForWalls = newY;
     }
 }
@@ -182,7 +186,7 @@ void updatePlayer(Player *player) {
         player->vx = 0;
     }
     if (player->x > CONSOLE_WIDTH - 2) {
-        player->x = CONSOLE_WIDTH -2;
+        player->x = CONSOLE_WIDTH - 2;
         player->vx = 0;
     }
 
@@ -191,7 +195,7 @@ void updatePlayer(Player *player) {
         while (current) {
             Platform p = current->p;
             float platformTop = p.y + 1;
-            if (player->x >= p.x && player->x <= p.x +p.width) {
+            if (player->x >= p.x && player->x <= p.x + p.width) {
                 if (prevY >= platformTop && player->y < platformTop) {
                     player->y = platformTop;
                     player->vy = 0;
@@ -215,8 +219,9 @@ void renderGame(Player player) {
         screen[i][CONSOLE_WIDTH] = '\0';
     }
 
+
     WallNode *wNode = wallList;
-    while(wNode) {
+    while (wNode) {
         int wallScreenY = CONSOLE_HEIGHT - 1 - (int)(wNode->y - cameraOffset);
         if (wallScreenY >= 0 && wallScreenY < CONSOLE_HEIGHT) {
             int x;
@@ -253,78 +258,187 @@ void renderGame(Player player) {
         playerScreenX >= 0 && playerScreenX < CONSOLE_WIDTH) {
         screen[playerScreenY][playerScreenX] = 'O';
     }
-    gotoXY(0,0);
+
+    gotoXY(0, 0);
     for (int i = 0; i < CONSOLE_HEIGHT; i++) {
-        printf("%s\n",screen[i]);
+        printf("%s\n", screen[i]);
     }
-    printf("Score: %d\n",score);
+    printf("Score: %d\n", score);
 }
 
-int main() {
-    srand(time(NULL));
-    initPlatforms();
-    initWalls();
-
-    Player player;
-    player.x = CONSOLE_WIDTH / 2;
-    player.y = 1;
-    player.vx = 0;
-    player.vy = 0;
-
-    cameraOffset = 0;
-    int gameOver = 0;
-
-    while(!gameOver) {
-        if(kbhit()) {
-            char ch = getch();
-            if (ch == 'a')
-                player.vx = -2.5f;
-            if (ch == 'd')
-                player.vx = 2.5f;
-            if (ch == 'w' && player.vy == 0) {
-                player.vy = 5;
-                jumpLock = 5;
-            }
-            if (ch == 'q')
-                break;
-        } else {
-            player.vx *= 0.9f;
-        }
-
-        updatePlayer(&player);
-        if (player.y - cameraOffset > SCROLL_THRESHOLD) {
-            cameraOffset = player.y - SCROLL_THRESHOLD;
-        }
-
-        if (player.y < cameraOffset - 1) {
-            gameOver = 1;
-            break;
-        }
-
-        updatePlatforms();
-        updateWalls();
-        renderGame(player);
-        if (jumpLock > 0)
-            jumpLock--;
-
-        Sleep(1);
-    }
-
-    gotoXY(0,CONSOLE_HEIGHT + 1);
-    printf("Game Over! Score: %d\n",score);
-    getch();
-
-    while(platformList != NULL) {
+void cleanup() {
+    while (platformList != NULL) {
         PlatformNode *temp = platformList;
         platformList = platformList->next;
         free(temp);
     }
-
-    while(wallList != NULL) {
+    while (wallList != NULL) {
         WallNode *temp = wallList;
         wallList = wallList->next;
         free(temp);
     }
+}
 
+int main() {
+    srand(time(NULL));
+    int StartX = CONSOLE_WIDTH / 2 - 30;
+    int StartY = CONSOLE_HEIGHT / 2 - 2;
+
+    const char *options[] = {"PLAY", "QUIT"};
+    int selection = 0;
+    int optionCount = sizeof(options) / sizeof(options[0]);
+    int done = 0;
+
+    while (!done) {
+        system("cls");
+
+        for (int i = 0; i < optionCount; i++) {
+            int startX = (CONSOLE_WIDTH - (int)strlen(options[i]) - 4) / 2;
+            int startY = 10 + i * 2;
+
+            gotoXY(StartX, StartY);
+            printf("#####   ###   #####  #   #  #   #    #####  #   #  #####  #####  #####\n");
+            gotoXY(StartX, StartY + 1);
+            printf("#   #    #    #      #  #    # #       #    #   #  # # #  #   #  #    \n");
+            gotoXY(StartX, StartY + 2);
+            printf("####     #    # # #  # #      #        #    #   #  # # #  #####  #####\n");
+            gotoXY(StartX, StartY + 3);
+            printf("#  #     #        #  #  #     #      # #    #   #  # # #  #          #\n");
+            gotoXY(StartX, StartY + 4);
+            printf("#   #   ###   #####  #   #    #      ###    #####  # # #  #      #####\n");
+
+            gotoXY(startX, startY + 9 + i);
+            if (i == selection)
+                printf("> %s <", options[i]);
+            else
+                printf("  %s  ", options[i]);
+        }
+
+        int ch = getch();
+        if(ch == 224) {
+            ch = getch();
+            if(ch == 72) {
+                selection--;
+                if(selection < 0)
+                    selection = optionCount - 1;
+            } else if(ch == 80) {
+                selection++;
+                if(selection >= optionCount)
+                    selection = 0;
+            }
+        } else if(ch == 13) {
+            done = 1;
+        }
+    }
+
+    if(selection == 1)
+        exit(0);
+
+    while (1) {
+        initPlatforms();
+        initWalls();
+        score = 0;
+        gameOver = 0;
+        jumpLock = 0;
+        cameraOffset = 0;
+
+        Player player;
+        player.x = CONSOLE_WIDTH / 2;
+        player.y = 1;
+        player.vx = 0;
+        player.vy = 0;
+
+        while (!gameOver) {
+            if (kbhit()) {
+                char ch = getch();
+                if (ch == 'a')
+                    player.vx = -2.5f;
+                if (ch == 'd')
+                    player.vx = 2.5f;
+                if (ch == 'w' && player.vy == 0) {
+                    player.vy = 5;
+                    jumpLock = 5;
+                }
+                if (ch == 'q') {
+                    gameOver = 1;
+                    break;
+                }
+            } else {
+                player.vx *= 0.9f;
+            }
+
+            updatePlayer(&player);
+            if (player.y - cameraOffset > SCROLL_THRESHOLD) {
+                cameraOffset = player.y - SCROLL_THRESHOLD;
+            }
+
+            if (player.y < cameraOffset - 1) {
+                gameOver = 1;
+                break;
+            }
+
+            updatePlatforms();
+            updateWalls();
+            renderGame(player);
+            if (jumpLock > 0)
+                jumpLock--;
+
+            Sleep(1);
+        }
+
+        cleanup();
+
+        int gameOverSelection = 0;
+        const char *gameOverOptions[] = {"PLAY AGAIN", "QUIT"};
+        int gameOverOptionCount = 2;
+
+        while (1) {
+            system("cls");
+            int gameOverX = CONSOLE_WIDTH / 2 - 30;
+            int gameOverY = CONSOLE_HEIGHT / 2 - 2;
+            gotoXY(gameOverX, gameOverY);
+            printf("#####   #####  #####  #####    #####  #   #  #####  #####\n");
+            gotoXY(gameOverX, gameOverY + 1);
+            printf("#       #   #  # # #  #        #   #  #   #  #      #   #\n");
+            gotoXY(gameOverX, gameOverY + 2);
+            printf("#  ##   #####  # # #  ####     #   #   # #   ####   #####\n");
+            gotoXY(gameOverX, gameOverY + 3);
+            printf("#   #   #   #  # # #  #        #   #   # #   #      #  # \n");
+            gotoXY(gameOverX, gameOverY + 4);
+            printf("#####   #   #  # # #  #####    #####    #    #####  #   #\n");
+
+            gotoXY(gameOverX, gameOverY + 6);
+            printf("Score: %d\n", score);
+
+            for (int i = 0; i < gameOverOptionCount; i++) {
+                gotoXY(gameOverX, gameOverY + 8 + i);
+                if (i == gameOverSelection)
+                    printf("> %s <", gameOverOptions[i]);
+                else
+                    printf("  %s  ", gameOverOptions[i]);
+            }
+
+            int ch = getch();
+            if(ch == 224) {
+                ch = getch();
+                if(ch == 72) {
+                    gameOverSelection--;
+                    if(gameOverSelection < 0)
+                        gameOverSelection = gameOverOptionCount - 1;
+                } else if(ch == 80) {
+                    gameOverSelection++;
+                    if(gameOverSelection >= gameOverOptionCount)
+                        gameOverSelection = 0;
+                }
+            } else if(ch == 13) {
+                break;
+            }
+        }
+
+        if(gameOverSelection == 1)
+            break;
+    }
+
+    system("cls");
     return 0;
 }
